@@ -16,6 +16,21 @@ This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https:
 - **Data-driven "Sensory" difficulty** — a cross-chart difficulty rating computed from the *actual chart* (peak notes-per-second, density, jump load, gimmicks) instead of the author-assigned foot meter, with the real jump between difficulties shown as a ladder.
 - **Accurate BPM estimator** — the BPM readout is derived from the chart's true timing (duration-weighted dominant + real min–max range), so songs with a spoofed or random `#DISPLAYBPM` show a real tempo instead of cycling digits.
 
+**In action:**
+
+<p align="center">
+  <img src="docs/screenshots/song-search.png" width="820" alt="Song search keyboard"><br>
+  <sub><em>Press <b>Space</b> on the wheel to search by title / artist.</em></sub>
+</p>
+<p align="center">
+  <img src="docs/screenshots/search-results.png" width="820" alt="Song search results"><br>
+  <sub><em>Matches are collected under a “Search Results” group.</em></sub>
+</p>
+<p align="center">
+  <img src="docs/screenshots/sensory-difficulty.png" width="820" alt="Sensory difficulty rating and jump ladder"><br>
+  <sub><em>Data-driven <b>SENSORY</b> rating + BPM panel, with the real jump between difficulties (the <code>17 &gt; 27 &gt; [55] &gt; 55</code> ladder).</em></sub>
+</p>
+
 Everything below is Midflight Digital's original README.
 
 ## About
