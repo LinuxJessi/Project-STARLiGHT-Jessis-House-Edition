@@ -10,7 +10,7 @@
 
 ## 💜 Jessi's House Edition
 
-This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https://github.com/MidflightDigital/XX--STARLiGHT--twopointzero). All of the theme — its art, design, and original code — is the work of **Midflight Digital**; this fork only layers a few extra select-screen features on top (Lua code only, no art changes). Added features:
+This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https://github.com/MidflightDigital/XX--STARLiGHT--twopointzero). All of the theme including its art, design, and original code is the work of **Midflight Digital**; this fork only layers a few extra select-screen features on top (Lua code only, no art changes). Added features:
 
 - **Song search** — tap **Space twice** on the music wheel to open search by title / artist, then jump straight to the matching songs.
 - **Data-driven "Sensory" difficulty** — a cross-chart difficulty rating computed from the *actual chart* (peak notes-per-second, density, jump load, gimmicks) instead of the author-assigned foot meter, with the real jump between difficulties shown as a ladder.
