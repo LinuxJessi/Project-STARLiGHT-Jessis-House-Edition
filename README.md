@@ -8,6 +8,16 @@
 
 <h4 align="center">Repository for the Project XX STARLiGHT theme by Midflight Digital.</h4>
 
+## 💜 Jessi's House Edition
+
+This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https://github.com/MidflightDigital/XX--STARLiGHT--twopointzero). All of the theme — its art, design, and original code — is the work of **Midflight Digital**; this fork only layers a few extra select-screen features on top (Lua code only, no art changes). Added features:
+
+- **Song search** — press **Space** on the music wheel to search by title / artist, then jump straight to the matching songs.
+- **Data-driven "Sensory" difficulty** — a cross-chart difficulty rating computed from the *actual chart* (peak notes-per-second, density, jump load, gimmicks) instead of the author-assigned foot meter, with the real jump between difficulties shown as a ladder.
+- **Accurate BPM estimator** — the BPM readout is derived from the chart's true timing (duration-weighted dominant + real min–max range), so songs with a spoofed or random `#DISPLAYBPM` show a real tempo instead of cycling digits.
+
+Everything below is Midflight Digital's original README.
+
 ## About
 Project XX STARLiGHT is a Project OutFox theme focused on 4 and 8-panel play, created by Midflight Digital.
 

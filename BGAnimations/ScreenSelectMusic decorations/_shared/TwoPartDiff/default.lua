@@ -486,4 +486,24 @@ for _,pn in pairs(GAMESTATE:GetEnabledPlayers()) do
 }
 end
 
+-- In-depth BPM readout shown while adjusting difficulty on the steps-select
+-- ("cover") screen. Slides in on the right with the difficulty selector and
+-- updates per highlighted difficulty via EstimateSongBPM (Scripts/00 AInit.lua),
+-- using that chart's own (split) timing. Shows the average tempo, the true
+-- range, the max, and a colour-coded SPEED / VARIABILITY rating.
+-- NOTE: positioned for single-player; move for a 2P-facing layout.
+af[#af+1] = Def.ActorFrame{
+	Name="BPMInfo",
+	InitCommand=function(s) s:xy(SCREEN_RIGHT-240,_screen.cy-40):diffusealpha(0) end,
+	StartSelectingStepsMessageCommand=function(s)
+		s:finishtweening():x(SCREEN_RIGHT+220):diffusealpha(0)
+			:sleep(0.4):decelerate(0.35):x(SCREEN_RIGHT-240):diffusealpha(1)
+	end,
+	RemoveCommand=function(s) s:finishtweening():accelerate(0.3):x(SCREEN_RIGHT+220):diffusealpha(0) end,
+	SongUnchosenMessageCommand=function(s) s:playcommand("Remove") end,
+	OffCommand=function(s) s:playcommand("Remove") end,
+	-- Shared readout (identical to the wheel's); it updates itself on song/steps changes.
+	loadfile(THEME:GetPathB("ScreenSelectMusic","decorations/_shared/BPMInfoPanel.lua"))(),
+}
+
 return af

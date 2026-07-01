@@ -166,18 +166,16 @@ return Def.ActorFrame{
                     SetCommand=function(s) 
                         local song = GAMESTATE:GetCurrentSong()
                         if song then
-                            local bpmval
-                            if song:IsDisplayBpmRandom() then
-                                speedvalue = "???"
+                            --Duration-weighted estimate from real timing data
+                            --(EstimateSongBPM in Scripts/00 AInit.lua) instead of
+                            --the declared #DISPLAYBPM; shows a real tempo even for
+                            --random/hidden-BPM charts (previously "???").
+                            local est = EstimateSongBPM(song)
+                            local speedvalue
+                            if est.constant then
+                                speedvalue = est.dominant
                             else
-                                local rawbpm = GAMESTATE:GetCurrentSong():GetDisplayBpms()
-                                local lowbpm = math.ceil(rawbpm[1]);
-                                local hibpm = math.ceil(rawbpm[2])
-                                if lowbpm == hibpm then
-                                    speedvalue = hibpm
-                                else
-                                    speedvalue = lowbpm.." - "..hibpm
-                                end
+                                speedvalue = est.dominant.." ("..math.floor(est.min+0.5).."-"..math.floor(est.max+0.5)..")"
                             end
                             s:settext(speedvalue)
                             s:finishtweening():zoomy(0):diffusealpha(1):zoomx(1.525):decelerate(0.33):zoom(1.3)

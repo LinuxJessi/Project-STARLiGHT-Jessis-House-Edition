@@ -521,6 +521,245 @@ function CalculateReadBPM(song)
     return math.min(read_bpm, mMod_high_cap)
 end
 
+--Returns a duration-weighted BPM estimate computed from the song's real
+--timing data instead of the (frequently inaccurate/hidden) #DISPLAYBPM tag.
+--Result table:
+--  dominant = the BPM the song spends the most time at (weighted mode, integer)
+--  average  = the duration-weighted mean BPM (integer)
+--  min/max  = the true tempo extremes across the chart
+--  constant = true when min and max round to the same integer
+--  source   = "timing" | "actual" | "display" | "none"
+--Pass a Steps to honour per-chart (split) timing; omit it for a song-level
+--estimate. A per-session cache keyed by song directory avoids recomputing
+--while the player scrolls the wheel.
+local bpmEstimateCache = {}
+
+local function roundBPM(bpm)
+    return math.floor(bpm + 0.5)
+end
+
+function EstimateSongBPM(song, steps)
+    if not song then
+        return { dominant = 0, average = 0, min = 0, max = 0, constant = true, source = "none" }
+    end
+
+    local cacheKey = song:GetSongDir()
+    --Include the chart signature when a Steps is given, so split-timing charts
+    --cache (and return) a distinct estimate per difficulty.
+    if cacheKey and steps then
+        cacheKey = cacheKey .. "|" .. steps:GetStepsType() .. "|" .. steps:GetDifficulty() .. "|" .. steps:GetMeter()
+    end
+    if cacheKey and bpmEstimateCache[cacheKey] then
+        return bpmEstimateCache[cacheKey]
+    end
+
+    local result = { dominant = 0, average = 0, min = 0, max = 0, constant = true, source = "none" }
+
+    --Prefer per-chart (split) timing when a Steps is supplied; otherwise use
+    --the song's own timing (the same source CalculateReadBPM relies on).
+    local td
+    if steps and steps.GetTimingData then td = steps:GetTimingData() end
+    if not td and song.GetSongTiming then td = song:GetSongTiming() end
+    if not td and song.GetTimingData then td = song:GetTimingData() end
+
+    --Best path: weight each BPM segment by the musical seconds it is active,
+    --then take the bucket holding the most time as the dominant tempo and the
+    --duration-weighted mean as the average.
+    if td and td.GetBPMsAndTimes then
+        local ok, segs = pcall(function() return td:GetBPMsAndTimes(true) end)
+        if ok and type(segs) == "table" and #segs > 0 then
+            local lastBeat = (song.GetLastBeat and song:GetLastBeat()) or 0
+            local weights, total, weightedSum = {}, 0, 0
+            local minb, maxb = math.huge, -math.huge
+            for i = 1, #segs do
+                local startBeat = segs[i][1]
+                local bpm = segs[i][2]
+                local endBeat = (segs[i + 1] and segs[i + 1][1]) or lastBeat
+                if bpm and bpm > 0 and startBeat and endBeat and endBeat > startBeat then
+                    local secs = (endBeat - startBeat) * 60 / bpm
+                    local bucket = roundBPM(bpm)
+                    weights[bucket] = (weights[bucket] or 0) + secs
+                    total = total + secs
+                    weightedSum = weightedSum + bpm * secs
+                    if bpm < minb then minb = bpm end
+                    if bpm > maxb then maxb = bpm end
+                end
+            end
+            if total > 0 then
+                local bestBucket, bestSecs = 0, -1
+                for bucket, secs in pairs(weights) do
+                    if secs > bestSecs then bestSecs, bestBucket = secs, bucket end
+                end
+                result.dominant = bestBucket
+                result.average = roundBPM(weightedSum / total)
+                result.min, result.max = minb, maxb
+                result.constant = (roundBPM(minb) == roundBPM(maxb))
+                result.source = "timing"
+            end
+        end
+    end
+
+    --Fallback 1: engine min/max actual BPM (already used by CalculateReadBPM).
+    if result.source == "none" and td and td.GetActualBPM then
+        local ab = td:GetActualBPM()
+        if ab and ab[1] and ab[1] > 0 then
+            result.min, result.max = ab[1], ab[2]
+            result.dominant = roundBPM(ab[2])
+            result.average = roundBPM((ab[1] + ab[2]) / 2)
+            result.constant = (roundBPM(ab[1]) == roundBPM(ab[2]))
+            result.source = "actual"
+        end
+    end
+
+    --Fallback 2: the declared display BPM (last resort; may be a lie).
+    if result.source == "none" then
+        local disp = song:GetDisplayBpms()
+        if disp and disp[1] and disp[1] > 0 then
+            result.min, result.max = disp[1], disp[2]
+            result.dominant = roundBPM(disp[2])
+            result.average = roundBPM((disp[1] + disp[2]) / 2)
+            result.constant = (roundBPM(disp[1]) == roundBPM(disp[2]))
+            result.source = "display"
+        end
+    end
+
+    if cacheKey then bpmEstimateCache[cacheKey] = result end
+    return result
+end
+
+--Speed-tier label + colour for a representative BPM. Shared by the on-screen
+--BPM panels; retune the cutoffs here to change the rating everywhere.
+function BPMSpeedTier(bpm)
+    if bpm < 100 then return "SLOW", color("#8ad4ff")
+    elseif bpm < 140 then return "MODERATE", color("#7cfc7c")
+    elseif bpm < 180 then return "FAST", color("#f6e05e")
+    elseif bpm < 220 then return "VERY FAST", color("#f6a13c")
+    else return "EXTREME", color("#f2555f") end
+end
+
+--Variability label from a BPM estimate: STEADY (constant), GIMMICK (max at
+--least double min), else VARIABLE.
+function BPMVariability(est)
+    if est.constant then return "STEADY"
+    elseif est.min > 0 and est.max >= est.min * 2 then return "GIMMICK"
+    else return "VARIABLE" end
+end
+
+--=== Sensory difficulty =====================================================
+-- A cross-chart difficulty estimate from the ACTUAL chart data (density, peak
+-- speed, jump load, gimmicks) rather than the author-assigned foot meter, which
+-- is wildly inconsistent between user charts. Anchored on peak notes-per-second.
+-- Weights are tunable here.
+local SENSORY_W = { peak = 7, avg = 3, jump = 25, gimmick = 12 }
+local sensoryCache, noteColorCache = {}, {}
+
+local function chartKey(steps)
+    if steps.GetChartKey then
+        local k = steps:GetChartKey()
+        if k and k ~= "" then return k end
+    end
+    if steps.GetHash then return "h" .. tostring(steps:GetHash()) end
+    return nil
+end
+
+--0..1 gimmick intensity + short flag labels, from a chart's TimingData.
+local function gimmickInfo(td)
+    if not td then return 0, {} end
+    local g, labels = 0, {}
+    local function add(cond, w, label)
+        if cond then g = g + w; if label then labels[#labels + 1] = label end end
+    end
+    add(td.HasStops and td:HasStops(), 0.15, "STOP")
+    add(td.HasWarps and td:HasWarps(), 0.25, "WARP")
+    add(td.HasNegativeBPMs and td:HasNegativeBPMs(), 0.20, "NEG")
+    add(td.HasSpeedChanges and td:HasSpeedChanges(), 0.10, "SPD")
+    add(td.HasScrollChanges and td:HasScrollChanges(), 0.10, "SCRL")
+    add(td.HasFakes and td:HasFakes(), 0.05, "FAKE")
+    add(td.HasDelays and td:HasDelays(), 0.05, nil)
+    if td.GetActualBPM then
+        local mm = td:GetActualBPM()
+        if mm and mm[1] and mm[1] > 0 and mm[2] >= mm[1] * 2 then
+            g = g + 0.20; labels[#labels + 1] = "BPM"
+        end
+    end
+    return math.min(g, 1), labels
+end
+
+--Composite sensory difficulty for a chart. Cheap (no note iteration), cached.
+--Returns { score, avgNPS, peakNPS, jumpRatio, gimmick, gimmicks={labels} }.
+function ChartSensory(steps, pn)
+    if not steps then return nil end
+    pn = pn or GAMESTATE:GetMasterPlayerNumber()
+    local key = chartKey(steps)
+    if key and sensoryCache[key] then return sensoryCache[key] end
+
+    local dur = (steps.GetChartLength and steps:GetChartLength()) or 0
+    local avgNPS, peakNPS, jumpRatio = 0, 0, 0
+    local ok, rv = pcall(function() return steps:GetRadarValues(pn) end)
+    if ok and rv then
+        local taps  = rv:GetValue('RadarCategory_TapsAndHolds') or 0
+        local jumps = rv:GetValue('RadarCategory_Jumps') or 0
+        local hands = rv:GetValue('RadarCategory_Hands') or 0
+        if dur > 0 then avgNPS = taps / dur end
+        if taps > 0 then jumpRatio = (jumps + 2 * hands) / taps end
+    end
+    if steps.GetPeakNPS then peakNPS = steps:GetPeakNPS() or 0
+    elseif steps.GetMaxNPS then peakNPS = steps:GetMaxNPS() or 0 end
+    local gim, glabels = gimmickInfo(steps.GetTimingData and steps:GetTimingData() or nil)
+
+    local score = math.floor(peakNPS * SENSORY_W.peak + avgNPS * SENSORY_W.avg
+        + jumpRatio * SENSORY_W.jump + gim * SENSORY_W.gimmick + 0.5)
+
+    local result = { score = score, avgNPS = avgNPS, peakNPS = peakNPS,
+        jumpRatio = jumpRatio, gimmick = gim, gimmicks = glabels }
+    if key then sensoryCache[key] = result end
+    return result
+end
+
+--Note-color / rhythm breakdown from the chart's notes. Iterates note data, so
+--use for the CURRENT difficulty only; cached. Note colours are the quantization
+--(4th=red, 8th=blue, 12th=purple, 16th=yellow, ...). "tech" = notes finer than
+--8th. Returns { techPct, finest, dominant, total } or nil if unavailable.
+function ChartNoteColors(steps)
+    if not steps or not steps.GetNoteData then return nil end
+    local key = chartKey(steps)
+    if key and noteColorCache[key] ~= nil then return noteColorCache[key] or nil end
+    local ok, nd = pcall(function() return steps:GetNoteData(nil, nil) end)
+    local result = false
+    if ok and type(nd) == "table" then
+        local counts, total = {}, 0
+        for _, e in ipairs(nd) do
+            local nt = e[3] or e.NoteType
+            local q  = e[4] or e.Quantization
+            if q and (not nt or not tostring(nt):find("Mine")) then
+                local n = tonumber(tostring(q):match("(%d+)")) or 4
+                counts[n] = (counts[n] or 0) + 1
+                total = total + 1
+            end
+        end
+        if total > 0 then
+            local tech, finest, domN, domC = 0, 4, 4, -1
+            for n, cnt in pairs(counts) do
+                if n > 8 then tech = tech + cnt end
+                if n > finest then finest = n end
+                if cnt > domC then domC, domN = cnt, n end
+            end
+            result = { techPct = tech / total, finest = finest, dominant = domN, total = total }
+        end
+    end
+    if key then noteColorCache[key] = result end
+    return result or nil
+end
+
+--Colour for a sensory score (easy cyan -> extreme red).
+function SensoryTier(score)
+    if score < 20 then return color("#8ad4ff")
+    elseif score < 35 then return color("#7cfc7c")
+    elseif score < 50 then return color("#f6e05e")
+    elseif score < 70 then return color("#f6a13c")
+    else return color("#f2555f") end
+end
+
 function HasThumbnail(song)
 	local dir = FILEMAN:GetDirListing( song:GetSongDir(), false, true )
 	

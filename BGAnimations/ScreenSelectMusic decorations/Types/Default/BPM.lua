@@ -12,26 +12,23 @@ do
 	end
 end
 
-local counter = 0
-local targetDelta = 1/60
-local timer = GetUpdateTimer(targetDelta)
-
---displays 3 digit numbers 000, 111, 222... 999, 000... every 1/60 of a second (about)
-local function RandomBPM(self, _)
-	local s = self:GetChild"BPMDisplay"
-	s:settext("BPM "..string.rep(tostring(counter),3))
-	counter = (counter+1)%10
+--The BPM shown here is a duration-weighted estimate computed from the song's
+--real timing data (EstimateSongBPM in Scripts/00 AInit.lua), NOT the declared
+--#DISPLAYBPM tag. Constant charts show a single number; variable charts show
+--the dominant BPM with the true range beside it. This also means songs with a
+--random/hidden #DISPLAYBPM now display a real tempo instead of cycling digits.
+local function ShowEstimatedBPM(s, song)
+	local est = EstimateSongBPM(song)
+	if est.constant then
+		gmcmd(s, "SetNormalCommand")
+		s:settextf("BPM %03d", est.dominant)
+	else
+		gmcmd(s, "SetChangeCommand")
+		s:settextf("BPM %03d (%03d-%03d)", est.dominant,
+			math.floor(est.min + 0.5), math.floor(est.max + 0.5))
+	end
+	s:GetParent():SetUpdateFunction(nil)
 end
-
-local function textBPM(dispBPM)
-	return string.format("BPM %03d", math.floor(dispBPM+0.5))
-end
-
-local function VariedBPM(self, _)
-	local s = self:GetChild"BPMDisplay"
-	s:settextf("BPM %03d - %03d",math.floor(dispBPMs[1]+0.5),math.floor(dispBPMs[2]+0.5))
-end
-
 
 return Def.ActorFrame{
 	--only ActorFrames and classes based on ActorFrame have update functions, which we need
@@ -45,24 +42,7 @@ return Def.ActorFrame{
 		CurrentSongChangedMessageCommand = function(s, _)
 			local song = GAMESTATE:GetCurrentSong()
 			if song then
-				if song:IsDisplayBpmRandom() or song:IsDisplayBpmSecret() then
-					gmcmd(s, song:IsDisplayBpmRandom() and "SetRandomCommand" or "SetExtraCommand")
-					--I do not believe that it is necessary to reset this counter every time.
-					--It may even be incorrect.
-					counter = 0
-					timer = GetUpdateTimer(targetDelta)
-					--an aux value of -1 is intended as a special value but it is not used.
-					s:aux(-1):settext "BPM 999":GetParent():SetUpdateFunction(RandomBPM)
-				else
-					local dispBPMs = song:GetDisplayBpms() 
-					if song:IsDisplayBpmConstant() then
-						gmcmd(s, "SetNormalCommand")
-						s:settextf("BPM %03d",math.floor(dispBPMs[1]+0.5)):GetParent():SetUpdateFunction(nil)
-					else
-						s:settextf("BPM %03d - %03d",math.floor(dispBPMs[1]+0.5),math.floor(dispBPMs[2]+0.5))
-						:GetParent():SetUpdateFunction(nil)
-					end
-				end
+				ShowEstimatedBPM(s, song)
 			else
 				gmcmd(s, "SetNoBpmCommand")
 				s:settext "":GetParent():SetUpdateFunction(nil)

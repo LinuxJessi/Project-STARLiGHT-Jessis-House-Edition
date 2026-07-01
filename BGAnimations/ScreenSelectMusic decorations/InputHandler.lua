@@ -155,9 +155,17 @@ local function InputHandler(event)
   if pressType ~= PRESS_RELEASE then
     local deviceButton = ToEnumShortString(event.DeviceInput.button):lower()
     if deviceButton == 'left mouse button' -- Stepmania 5.1
-    or deviceButton == 'left (01)'         -- Outfox 
+    or deviceButton == 'left (01)'         -- Outfox
     then
       MESSAGEMAN:Broadcast('MouseLeftClick')
+    end
+    -- Spacebar opens song search. Space is unbound as a game button, so this
+    -- never clashes with navigation, and the keyboard opens as a single overlay
+    -- on the wheel (no sort-menu stacking). Only while browsing the wheel.
+    if pressType == 'FirstPress' and deviceButton == 'space'
+       and getenv('OPList') == 0 and getenv('DList') == 0 then
+      LoadModule("SongSearch.lua").Prompt(SCREENMAN:GetTopScreen():GetChild("MusicWheel"))
+      return
     end
   end
   if getenv('OPList') == 1 then return end
@@ -170,6 +178,28 @@ end
 setenv("DList",0)
 
 local t = Def.ActorFrame{
+  Def.ActorFrame{
+    -- The engine's music wheel keeps its CACHED preferred-song list even after
+    -- SONGMAN:SetPreferredSongs changes it, so a repeat search kept showing the old
+    -- results. The only reliable refresh is reloading ScreenSelectMusic -- but we
+    -- can't do that from inside the text-entry overlay (it crashes). So SongSearch
+    -- sets the "StarlightSearchReload" env flag, and this poller reloads the screen
+    -- once the keyboard overlay is gone and ScreenSelectMusic is active again.
+    OnCommand=function(s)
+      s:SetUpdateFunction(function(self)
+        if getenv("StarlightSearchReload") == 1 then
+          local top = SCREENMAN:GetTopScreen()
+          if top and top:GetName() ~= "ScreenTextEntry" then
+            setenv("StarlightSearchReload", 0)
+            self:queuecommand("DoSearchReload")
+          end
+        end
+      end)
+    end,
+    DoSearchReloadCommand=function(s)
+      SCREENMAN:GetTopScreen():SetNextScreenName("ScreenSelectMusic"):StartTransitioningScreen("SM_GoToNextScreen")
+    end,
+  };
   BeginCommand=function()
     MusicWheel = SCREENMAN:GetTopScreen():GetChild('MusicWheel')
   end,

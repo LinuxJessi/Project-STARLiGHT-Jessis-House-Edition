@@ -225,8 +225,17 @@ return Def.ActorFrame{
 		OnCommand=function(s) s:diffusealpha(0):linear(0.2):diffusealpha(1) end,
 		OffCommand=function(s) s:linear(0.2):diffusealpha(0) end,
 		loadfile(THEME:GetPathB("ScreenSelectMusic","decorations/Types/A/BannerHandler.lua"))();
-		loadfile(THEME:GetPathB("ScreenSelectMusic","decorations/Types/A/BPM.lua"))()..{
-			InitCommand=function(s) s:xy(140,48) end,
-		};
+	};
+	-- Rich BPM readout on the song wheel (shared with the difficulty screen).
+	-- Right-center; fades out while the difficulty selector is up so the two
+	-- copies never overlap. Same panel/rating as the cover screen.
+	Def.ActorFrame{
+		Name="BPMInfoWheel",
+		InitCommand=function(s) s:xy(SCREEN_RIGHT-240,_screen.cy-40):diffusealpha(0) end,
+		OnCommand=function(s) s:sleep(0.2):linear(0.2):diffusealpha(1) end,
+		StartSelectingStepsMessageCommand=function(s) s:stoptweening():linear(0.15):diffusealpha(0) end,
+		SongUnchosenMessageCommand=function(s) s:stoptweening():linear(0.15):diffusealpha(1) end,
+		OffCommand=function(s) s:linear(0.2):diffusealpha(0) end,
+		loadfile(THEME:GetPathB("ScreenSelectMusic","decorations/_shared/BPMInfoPanel.lua"))(),
 	};
 }
