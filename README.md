@@ -12,7 +12,7 @@
 
 This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https://github.com/MidflightDigital/XX--STARLiGHT--twopointzero). All of the theme — its art, design, and original code — is the work of **Midflight Digital**; this fork only layers a few extra select-screen features on top (Lua code only, no art changes). Added features:
 
-- **Song search** — press **Space** on the music wheel to search by title / artist, then jump straight to the matching songs.
+- **Song search** — tap **Space twice** on the music wheel to open search by title / artist, then jump straight to the matching songs.
 - **Data-driven "Sensory" difficulty** — a cross-chart difficulty rating computed from the *actual chart* (peak notes-per-second, density, jump load, gimmicks) instead of the author-assigned foot meter, with the real jump between difficulties shown as a ladder.
 - **Accurate BPM estimator** — the BPM readout is derived from the chart's true timing (duration-weighted dominant + real min–max range), so songs with a spoofed or random `#DISPLAYBPM` show a real tempo instead of cycling digits.
 
@@ -20,7 +20,7 @@ This is a personal **fork** of [Midflight Digital's Project XX STARLiGHT](https:
 
 <p align="center">
   <img src="docs/screenshots/song-search.png" width="820" alt="Song search keyboard"><br>
-  <sub><em>Press <b>Space</b> on the wheel to search by title / artist.</em></sub>
+  <sub><em>Tap <b>Space</b> twice on the wheel to open search by title / artist.</em></sub>
 </p>
 <p align="center">
   <img src="docs/screenshots/search-results.png" width="820" alt="Song search results"><br>
